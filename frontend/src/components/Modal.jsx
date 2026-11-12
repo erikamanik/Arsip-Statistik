@@ -8,7 +8,7 @@ const EXIT_MS = 160;
 
 // children boleh berupa fungsi: (close) => node, dengan close() menutup modal lewat animasi keluar.
 // locked: blokir penutupan oleh pengguna (Esc, klik luar, tombol X) selama proses berjalan.
-export default function Modal({ title, onClose, children, closing: closingProp = false, locked = false }) {
+export default function Modal({ title, onClose, children, closing: closingProp = false, locked = false, size = '', headExtra = null }) {
   const titleId = useId();
   const box = useRef(null);
   const closeRef = useRef(onClose);
@@ -67,10 +67,13 @@ export default function Modal({ title, onClose, children, closing: closingProp =
         downOnOverlay.current = false;
       }}
     >
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={box} tabIndex={-1}>
+      <div className={`modal ${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={box} tabIndex={-1}>
         <div className="modal-head">
           <h3 id={titleId}>{title}</h3>
-          <button className="icon-btn" onClick={() => requestClose()} aria-label="Tutup"><X size={20} /></button>
+          <div className="modal-head-tools">
+            {headExtra}
+            <button className="icon-btn" onClick={() => requestClose()} aria-label="Tutup"><X size={20} /></button>
+          </div>
         </div>
         <div className="modal-body">{typeof children === 'function' ? children(() => requestClose(true)) : children}</div>
       </div>

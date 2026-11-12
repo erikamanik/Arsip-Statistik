@@ -114,8 +114,10 @@ export default function Layout() {
           )}
         </div>
 
-        <ThemeToggle variant="row" />
-        <InstallButton variant="card" />
+        <div className="side-foot">
+          <ThemeToggle variant="row" />
+          <InstallButton variant="card" />
+        </div>
         <div className="userbox">
           <Link to="/profil" className="userbox-link" aria-label="Buka profil">
             <Avatar user={user} />

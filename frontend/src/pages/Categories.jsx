@@ -86,17 +86,18 @@ export default function Categories() {
       {cats === null ? (
         <Loading variant="grid" />
       ) : cats.length === 0 ? (
-        <Empty text="Belum ada kategori. Tambahkan kategori pertama untuk tahun ini.">{add}</Empty>
+        <Empty title="Belum ada kategori" text="Tambahkan kategori pertama untuk tahun ini.">{add}</Empty>
       ) : (
         <div className="grid">
           {cats.map((c, i) => (
             <ItemCard
               key={c._id}
               index={i}
-              tone={i}
+              tone={0}
               icon={<BarChart3 size={26} />}
               title={c.name}
-              meta={`${c.groupCount} kelompok · ${c.archiveCount} arsip`}
+              count={c.archiveCount}
+              meta={`${c.groupCount} kelompok`}
               to={`/kategori/${c._id}`}
               canManage={isAdmin}
               onEdit={() => setModal({ type: 'edit', item: c })}

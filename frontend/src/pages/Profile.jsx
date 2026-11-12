@@ -27,6 +27,7 @@ export default function Profile() {
       </section>
 
       <div className="profile-grid">
+        <div className="profile-col">
         <section className="panel">
           <h3>Informasi akun</h3>
           <dl className="info">
@@ -36,7 +37,9 @@ export default function Profile() {
           </dl>
           <p className="muted small">{isAdmin ? 'Admin dapat mengedit, menghapus data, dan mengatur peran pengguna.' : 'User dapat melihat dan menambah arsip. Edit dan hapus hanya untuk admin.'}</p>
         </section>
+        </div>
 
+        <div className="profile-col">
         <section className="panel">
           <h3>Tampilan</h3>
           <p className="muted small">Pilih tema warna aplikasi. &ldquo;Sistem&rdquo; mengikuti pengaturan perangkat Anda.</p>
@@ -55,6 +58,7 @@ export default function Profile() {
             <button className="btn btn-danger-soft" onClick={logout}><LogOut size={18} /> Keluar</button>
           </div>
         </section>
+        </div>
       </div>
     </>
   );

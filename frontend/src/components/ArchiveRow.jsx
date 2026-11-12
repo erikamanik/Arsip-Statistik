@@ -1,26 +1,40 @@
 import { Link } from 'react-router-dom';
-import { ChevronRight, Clock, ExternalLink, FolderOpen, Mail, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, Clock, Download, ExternalLink, Eye, FolderOpen, Pencil, Trash2, User } from 'lucide-react';
 import { fileUrl, formatDateTime, formatSize } from '../api.js';
-import { archiveVisual } from '../fileTypes.js';
+import { archiveVisual, canRead } from '../fileTypes.js';
 import Highlight from './Highlight.jsx';
+import { useDownload } from './useDownload.js';
+
+const shortName = (u) => u?.name || (u?.email ? u.email.split('@')[0] : '-');
 
 // showPath: tampilkan lokasi (tahun > kategori > kelompok), dipakai di hasil pencarian
-export default function ArchiveRow({ a, index = 0, isAdmin, onEdit, onDelete, showPath, q = '' }) {
-  const href = a.type === 'link' ? a.url : fileUrl(a);
+// onRead: buka penampil dalam aplikasi (gambar, PDF, teks, CSV, dokumen Office)
+export default function ArchiveRow({ a, index = 0, isAdmin, onEdit, onDelete, onRead, showPath, q = '' }) {
+  const { download, busy } = useDownload();
   const { Icon, cls, label } = archiveVisual(a);
   const g = a.group;
+  const isLink = a.type === 'link';
+  const readable = canRead(a) && onRead;
+
+  const read = () => onRead(a);
 
   return (
-    <article className="archive" style={{ '--i': index }}>
-      <a className={`archive-thumb ${cls}`} href={href} target="_blank" rel="noreferrer" aria-label={`Buka ${a.title}`}>
-        {a.type === 'image' ? <img src={fileUrl(a)} alt="" loading="lazy" /> : <Icon size={28} />}
-      </a>
+    <article className="arow" style={{ '--i': index, '--act-w': isAdmin ? '300px' : '205px', '--act-w-sm': isAdmin ? '250px' : '130px' }}>
+      {readable ? (
+        <button className={`archive-thumb ${cls}`} onClick={read} aria-label={`Baca ${a.title}`}>
+          {a.type === 'image' ? <img src={fileUrl(a)} alt="" loading="lazy" /> : <Icon size={22} />}
+        </button>
+      ) : (
+        <a className={`archive-thumb ${cls}`} href={isLink ? a.url : fileUrl(a)} target="_blank" rel="noreferrer" aria-label={`Buka ${a.title}`} tabIndex={-1}>
+          <Icon size={22} />
+        </a>
+      )}
 
-      <div className="archive-main">
+      <div className="arow-main">
         <h4><Highlight text={a.title} q={q} /></h4>
         <p className="archive-sub">
           <span className={`tag ${cls}`}>{label}</span>
-          {a.type === 'link' ? <span className="ellipsis">{a.url}</span> : <span className="ellipsis"><Highlight text={a.originalName || ''} q={q} /> · {formatSize(a.size)}</span>}
+          {isLink ? <span className="ellipsis">{a.url}</span> : <span className="ellipsis"><Highlight text={a.originalName || ''} q={q} />{a.size ? ` · ${formatSize(a.size)}` : ''}</span>}
         </p>
         {showPath && g && (
           <p className="archive-path">
@@ -30,14 +44,24 @@ export default function ArchiveRow({ a, index = 0, isAdmin, onEdit, onDelete, sh
             </Link>
           </p>
         )}
-        <p className="archive-by">
-          <span><Mail size={13} /> {a.uploadedBy?.email || '-'}</span>
-          <span><Clock size={13} /> {formatDateTime(a.createdAt)}</span>
-        </p>
       </div>
 
-      <div className="archive-actions">
-        <a className="btn btn-soft sm" href={href} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Buka</a>
+      <div className="arow-meta">
+        <p className="arow-by" title={a.uploadedBy?.email}><User size={14} /><span className="ellipsis">{shortName(a.uploadedBy)}</span></p>
+        <p className="arow-date"><Clock size={14} /><span>{formatDateTime(a.createdAt)}</span></p>
+      </div>
+
+      <div className="arow-actions">
+        {isLink ? (
+          <a className="btn btn-soft sm" href={a.url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Buka tautan</a>
+        ) : (
+          <>
+            {readable && <button className="btn btn-soft sm" onClick={read}><Eye size={15} /> {a.type === 'image' ? 'Lihat' : 'Baca'}</button>}
+            <button className={`btn sm ${readable ? 'btn-ghost' : 'btn-soft'}`} onClick={() => download(a)} disabled={busy} title="Unduh" aria-label={`Unduh ${a.title}`}>
+              <Download size={15} /> <span className={readable ? 'btn-label-wide' : ''}>Unduh</span>
+            </button>
+          </>
+        )}
         {isAdmin && (
           <>
             <button className="icon-btn sm" onClick={onEdit} title="Edit" aria-label={`Edit ${a.title}`}><Pencil size={15} /></button>

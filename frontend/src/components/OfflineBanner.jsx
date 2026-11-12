@@ -5,7 +5,7 @@ import { useToast } from './Toast.jsx';
 export default function OfflineBanner() {
   const toast = useToast();
   const [online, setOnline] = useState(() => navigator.onLine);
-  const first = useRef(true);
+  const wasOffline = useRef(!navigator.onLine);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -16,8 +16,8 @@ export default function OfflineBanner() {
   }, []);
 
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    if (online) toast('Koneksi tersambung kembali.', 'success');
+    if (!online) { wasOffline.current = true; return; }
+    if (wasOffline.current) { wasOffline.current = false; toast('Koneksi tersambung kembali.', 'success'); }
   }, [online, toast]);
 
   return (

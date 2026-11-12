@@ -11,9 +11,11 @@ import { TYPES } from '../fileTypes.js';
 import PageHeader from '../components/PageHeader.jsx';
 import Modal from '../components/Modal.jsx';
 import ArchiveRow from '../components/ArchiveRow.jsx';
+import { useArchiveViewer } from '../components/ArchiveViewer.jsx';
 import { Empty, Loading, SkeletonText } from '../components/States.jsx';
 
 const MAX_SIZE = 25 * 1024 * 1024;
+const PAGE = 30;
 
 function FieldError({ id, children }) {
   return children ? <small id={id} className="field-error" role="alert">{children}</small> : null;
@@ -163,6 +165,7 @@ export default function Archives() {
   const [type, setType] = useState('all');
   const [sort, setSort] = useState('new');
   const [modal, setModal] = useState(null);
+  const [limit, setLimit] = useState(PAGE);
 
   const load = () =>
     api
@@ -178,6 +181,7 @@ export default function Archives() {
     setItems(null);
     setQ('');
     setType('all');
+    setLimit(PAGE);
     api
       .get(`/groups/${groupId}`)
       .then((r) => {
@@ -212,6 +216,9 @@ export default function Archives() {
       .filter((a) => !term || [a.title, a.originalName, a.uploadedBy?.email].join(' ').toLowerCase().includes(term))
       .sort(SORTS[sort].fn);
   }, [visible, q, type, sort]);
+
+  const { open: openViewer, node: viewer } = useArchiveViewer(filtered);
+  useEffect(() => setLimit(PAGE), [q, type, sort]);
 
   const cat = group?.category;
   const upload = <button className="btn btn-primary" onClick={() => setModal({ type: 'add' })}><Plus size={18} /> Upload Arsip</button>;
@@ -254,7 +261,7 @@ export default function Archives() {
       {items === null ? (
         <Loading variant="list" />
       ) : visible.length === 0 ? (
-        <Empty text="Belum ada arsip. Unggah file, gambar, atau tautan pertama.">
+        <Empty title="Belum ada arsip" text="Unggah file, gambar, atau tautan pertama ke kelompok ini.">
           <button className="btn btn-primary" onClick={() => setModal({ type: 'add' })}><Upload size={18} /> Upload Arsip</button>
         </Empty>
       ) : filtered.length === 0 ? (
@@ -267,20 +274,26 @@ export default function Archives() {
         <>
           {filtering && <p className="result-count" aria-live="polite">Menampilkan {filtered.length} dari {visible.length} arsip</p>}
           <div className="archive-list">
-            {filtered.map((a, i) => (
+            {filtered.slice(0, limit).map((a, i) => (
               <ArchiveRow
                 key={a._id}
                 a={a}
                 index={i}
                 q={q}
                 isAdmin={isAdmin}
+                onRead={openViewer}
                 onEdit={() => setModal({ type: 'edit', item: a })}
                 onDelete={() => removeArchive(a)}
               />
             ))}
           </div>
+          {filtered.length > limit && (
+            <div className="more"><button className="btn btn-ghost" onClick={() => setLimit((n) => n + PAGE)}>Tampilkan {Math.min(PAGE, filtered.length - limit)} arsip lagi <span className="muted">({filtered.length - limit} tersisa)</span></button></div>
+          )}
         </>
       )}
+
+      {viewer}
 
       {modal && (
         <ArchiveForm

@@ -90,17 +90,17 @@ export default function Groups() {
       {groups === null ? (
         <Loading variant="grid" />
       ) : groups.length === 0 ? (
-        <Empty text="Belum ada kelompok arsip. Tambahkan kelompok pertama Anda.">{add}</Empty>
+        <Empty title="Belum ada kelompok" text="Tambahkan kelompok pertama untuk mulai menyimpan arsip.">{add}</Empty>
       ) : (
         <div className="grid">
           {groups.map((g, i) => (
             <ItemCard
               key={g._id}
               index={i}
-              tone={i}
+              tone={0}
               icon={<FolderOpen size={26} />}
               title={g.name}
-              meta={`${g.archiveCount} arsip`}
+              count={g.archiveCount}
               to={`/kelompok/${g._id}`}
               canManage={isAdmin}
               onEdit={() => setModal({ type: 'edit', item: g })}

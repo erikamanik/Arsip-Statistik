@@ -1,5 +1,3 @@
-import { Inbox } from 'lucide-react';
-
 // variant: 'center' (spinner) | 'grid' (kerangka kartu) | 'list' (kerangka baris)
 export const Loading = ({ variant = 'center' }) => {
   if (variant === 'grid') {
@@ -40,9 +38,20 @@ export const Loading = ({ variant = 'center' }) => {
 
 export const SkeletonText = ({ width = 90 }) => <span className="sk sk-inline" style={{ width }} aria-hidden="true" />;
 
-export const Empty = ({ text, children }) => (
+// Ilustrasi batang grafik (motif merek) untuk keadaan kosong
+export const BarsArt = () => (
+  <svg className="bars-art" width="96" height="72" viewBox="0 0 96 72" aria-hidden="true">
+    <rect x="6" y="38" width="20" height="30" rx="5" fill="var(--blue)" opacity=".9" />
+    <rect x="38" y="10" width="20" height="58" rx="5" fill="var(--orange)" />
+    <rect x="70" y="26" width="20" height="42" rx="5" fill="var(--blue)" opacity=".45" />
+    <rect x="0" y="68" width="96" height="3" rx="1.5" fill="var(--line-strong)" />
+  </svg>
+);
+
+export const Empty = ({ text, title, icon, children }) => (
   <div className="state empty">
-    <span className="empty-icon"><Inbox size={30} /></span>
+    {icon ? <span className="empty-icon">{icon}</span> : <BarsArt />}
+    {title && <h3 className="empty-title">{title}</h3>}
     <p>{text}</p>
     {children}
   </div>

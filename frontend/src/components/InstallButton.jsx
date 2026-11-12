@@ -23,10 +23,7 @@ export default function InstallButton({ variant = 'btn' }) {
     <>
       {variant === 'icon' && <button className="icon-btn" onClick={click} aria-label="Install aplikasi"><Download size={20} /></button>}
       {variant === 'card' && (
-        <button className="install-card" onClick={click}>
-          <span className="install-ico"><Download size={18} /></span>
-          <span><strong>Install aplikasi</strong><small>Buka lebih cepat dari layar utama</small></span>
-        </button>
+        <button className="side-link" onClick={click}><Download size={17} /> Pasang aplikasi</button>
       )}
       {variant === 'btn' && <button className="btn btn-primary" onClick={click}><Download size={18} /> Install aplikasi</button>}
 

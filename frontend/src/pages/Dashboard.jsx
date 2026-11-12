@@ -68,6 +68,16 @@ export default function Dashboard() {
   const total = useMemo(() => (years || []).reduce((s, y) => s + (y.archiveCount || 0), 0), [years]);
   const thisWeek = archives ? archives.filter((a) => Date.now() - new Date(a.createdAt) < WEEK).length : null;
   const latest = (archives || []).slice(0, 5);
+  const thisYear = new Date().getFullYear();
+  // Unggahan terakhir per tahun (dari indeks sisi-klien)
+  const lastByYear = useMemo(() => {
+    const m = {};
+    (archives || []).forEach((a) => {
+      const id = a.group?.category?.year?._id;
+      if (id && (!m[id] || new Date(a.createdAt) > new Date(m[id]))) m[id] = a.createdAt;
+    });
+    return m;
+  }, [archives]);
 
   return (
     <>
@@ -85,14 +95,14 @@ export default function Dashboard() {
         <div className="summary" aria-label="Ringkasan">
           <div><b>{years.length}</b><span>Tahun kegiatan</span></div>
           <div><b>{total}</b><span>Arsip tersimpan</span></div>
-          <div><b>{thisWeek === null ? '–' : thisWeek}</b><span>Ditambah 7 hari ini</span></div>
+          <div><b>{thisWeek === null ? '–' : thisWeek}</b><span>Ditambah 7 hari terakhir</span></div>
         </div>
       )}
 
       {years === null ? (
         <Loading variant="grid" />
       ) : years.length === 0 ? (
-        <Empty text="Belum ada tahun. Mulai dengan menambahkan tahun kegiatan.">
+        <Empty title="Belum ada tahun" text="Mulai dengan menambahkan tahun kegiatan pertama.">
           <button className="btn btn-primary" onClick={() => setModal({ type: 'add' })}><Plus size={18} /> Tambah Tahun</button>
         </Empty>
       ) : (
@@ -101,10 +111,12 @@ export default function Dashboard() {
             <ItemCard
               key={y._id}
               index={i}
-              tone={i}
+              tone={y.year === thisYear ? 1 : 0}
+              badge={y.year === thisYear ? 'Berjalan' : undefined}
               icon={<CalendarDays size={26} />}
               title={`Tahun ${y.year}`}
-              meta={`${y.archiveCount} arsip tersimpan`}
+              count={y.archiveCount}
+              meta={lastByYear[y._id] ? `Terakhir diunggah ${timeAgo(lastByYear[y._id])}` : y.archiveCount ? undefined : 'Belum ada arsip'}
               to={`/tahun/${y._id}`}
               canManage={isAdmin}
               onEdit={() => setModal({ type: 'edit', item: y })}

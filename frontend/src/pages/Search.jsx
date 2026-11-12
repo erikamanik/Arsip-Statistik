@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, SearchX, X } from 'lucide-react';
 import { useIndex } from '../searchIndex.js';
 import { TYPES } from '../fileTypes.js';
 import PageHeader from '../components/PageHeader.jsx';
 import ArchiveRow from '../components/ArchiveRow.jsx';
+import { useArchiveViewer } from '../components/ArchiveViewer.jsx';
 import { Empty, Loading } from '../components/States.jsx';
 
 export default function Search() {
@@ -30,7 +31,10 @@ export default function Search() {
       .filter((a) => !term || [a.title, a.originalName, a.uploadedBy?.email, a.group?.name, a.group?.category?.name].join(' ').toLowerCase().includes(term));
   }, [items, term, type]);
 
-  const shown = term || type !== 'all' ? results : results.slice(0, 10);
+  const [limit, setLimit] = useState(30);
+  useEffect(() => setLimit(30), [term, type]);
+  const shown = term || type !== 'all' ? results.slice(0, limit) : results.slice(0, 10);
+  const { open: openViewer, node: viewer } = useArchiveViewer(shown);
 
   return (
     <>
@@ -74,10 +78,14 @@ export default function Search() {
             {term || type !== 'all' ? `${results.length} arsip ditemukan` : 'Arsip terbaru'}
           </p>
           <div className="archive-list">
-            {shown.map((a, i) => <ArchiveRow key={a._id} a={a} index={i} q={q} showPath />)}
+            {shown.map((a, i) => <ArchiveRow key={a._id} a={a} index={i} q={q} showPath onRead={openViewer} />)}
           </div>
+          {(term || type !== 'all') && results.length > limit && (
+            <div className="more"><button className="btn btn-ghost" onClick={() => setLimit((n) => n + 30)}>Tampilkan lebih banyak <span className="muted">({results.length - limit} tersisa)</span></button></div>
+          )}
         </>
       )}
+      {viewer}
     </>
   );
 }

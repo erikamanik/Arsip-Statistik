@@ -88,18 +88,17 @@ export default function AuthPage() {
           <h1>Arsip Kegiatan Statistik</h1>
           <p>Simpan, kelompokkan, dan temukan kembali arsip kegiatan statistik per tahun dalam bentuk file, gambar, maupun tautan.</p>
         </div>
-        <span className="blob b1" />
-        <span className="blob b2" />
-        <span className="blob b3" />
+        <div className="hero-art" aria-hidden="true">
+          <span className="bar b3" /><span className="bar b2" /><span className="bar b1" />
+        </div>
       </section>
 
       <section className="auth-panel">
+        <div className="auth-mobile-brand">
+          <BrandMark size={40} />
+          <strong>Arsip Statistik</strong>
+        </div>
         <div className="auth-card">
-          <div className="auth-mobile-brand">
-            <BrandMark size={40} />
-            <strong>Arsip Statistik</strong>
-          </div>
-
           <h2>{mode === 'login' ? 'Selamat datang kembali' : 'Buat akun baru'}</h2>
           <p className="muted">{mode === 'login' ? 'Masuk untuk mengakses arsip.' : 'Daftar untuk mulai menyimpan arsip.'}</p>
 
