@@ -1,8 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const multer = require('multer');
-const crypto = require('crypto');
+const { del } = require('@vercel/blob');
 
 const Year = require('../models/Year');
 const Category = require('../models/Category');
@@ -13,8 +12,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 router.use(auth); // semua endpoint di bawah wajib login
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads'); // hanya untuk arsip lama
 
 const DEFAULT_CATEGORIES = [
   'Statistik Harga',
@@ -22,20 +20,31 @@ const DEFAULT_CATEGORIES = [
   'Statistik Keuangan Dan Teknologi Informasi',
 ];
 
-/* ---------------------------- upload (multer) ---------------------------- */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
-});
-const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // maks 25 MB
-
-const removeFile = (filePath) => {
-  if (!filePath) return;
-  fs.unlink(path.join(UPLOAD_DIR, filePath), () => {});
+/* ----------------------------- file di Vercel Blob ----------------------------- */
+// Browser mengunggah file langsung ke Vercel Blob; backend hanya menyimpan alamatnya.
+const isBlobUrl = (v) => {
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && u.hostname.endsWith('.public.blob.vercel-storage.com');
+  } catch {
+    return false;
+  }
 };
+
+// Hapus file lama (Blob, atau folder uploads untuk arsip sebelum migrasi)
+const removeFile = async (archive) => {
+  if (!archive) return;
+  if (archive.fileUrl) {
+    try {
+      await del(archive.fileUrl);
+    } catch (err) {
+      console.error('Gagal menghapus file di Blob:', err.message);
+    }
+  } else if (archive.filePath) {
+    fs.unlink(path.join(UPLOAD_DIR, archive.filePath), () => {});
+  }
+};
+const discardBlob = (url) => (isBlobUrl(url) ? removeFile({ fileUrl: url }) : undefined);
 
 const validName = (v) => typeof v === 'string' && v.trim().length > 0;
 const isHttpUrl = (v) => /^https?:\/\/\S+$/i.test(v || '');
@@ -43,7 +52,7 @@ const isHttpUrl = (v) => /^https?:\/\/\S+$/i.test(v || '');
 /* ------------------------------ helper hapus ----------------------------- */
 async function deleteArchivesOfGroups(groupIds) {
   const archives = await Archive.find({ group: { $in: groupIds } });
-  archives.forEach((a) => removeFile(a.filePath));
+  await Promise.all(archives.map((a) => removeFile(a)));
   await Archive.deleteMany({ group: { $in: groupIds } });
 }
 async function deleteGroupsOfCategories(categoryIds) {
@@ -204,21 +213,20 @@ router.get('/groups/:groupId/archives', async (req, res) => {
   res.json(archives);
 });
 
-// Upload: type = link | file | image
-router.post('/groups/:groupId/archives', upload.single('file'), async (req, res) => {
+// Simpan arsip: type = link | file | image (file sudah diunggah browser ke Vercel Blob)
+router.post('/groups/:groupId/archives', async (req, res) => {
+  const { title, type, url, fileUrl, originalName, mimeType, size } = req.body;
   try {
-    const { title, type, url } = req.body;
-
     if (!validName(title)) {
-      removeFile(req.file?.filename);
+      await discardBlob(fileUrl);
       return res.status(400).json({ message: 'Judul arsip wajib diisi.' });
     }
     if (!['link', 'file', 'image'].includes(type)) {
-      removeFile(req.file?.filename);
+      await discardBlob(fileUrl);
       return res.status(400).json({ message: 'Jenis arsip tidak valid.' });
     }
     if (!(await Group.exists({ _id: req.params.groupId }))) {
-      removeFile(req.file?.filename);
+      await discardBlob(fileUrl);
       return res.status(404).json({ message: 'Kelompok tidak ditemukan.' });
     }
 
@@ -233,65 +241,70 @@ router.post('/groups/:groupId/archives', upload.single('file'), async (req, res)
       if (!isHttpUrl(url)) return res.status(400).json({ message: 'Masukkan tautan yang valid (diawali http:// atau https://).' });
       data.url = url;
     } else {
-      if (!req.file) return res.status(400).json({ message: 'Pilih file yang akan diunggah.' });
-      if (type === 'image' && !req.file.mimetype.startsWith('image/')) {
-        removeFile(req.file.filename);
+      if (!isBlobUrl(fileUrl)) return res.status(400).json({ message: 'Pilih file yang akan diunggah.' });
+      if (type === 'image' && !String(mimeType || '').startsWith('image/')) {
+        await discardBlob(fileUrl);
         return res.status(400).json({ message: 'File harus berupa gambar.' });
       }
-      data.filePath = req.file.filename;
-      data.originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      data.mimeType = req.file.mimetype;
-      data.size = req.file.size;
+      data.fileUrl = fileUrl;
+      data.originalName = String(originalName || '').slice(0, 255);
+      data.mimeType = String(mimeType || '');
+      data.size = Number(size) || 0;
     }
 
     const archive = await Archive.create(data);
     res.status(201).json(archive);
   } catch (err) {
     console.error(err);
-    removeFile(req.file?.filename);
+    await discardBlob(fileUrl);
     res.status(500).json({ message: 'Gagal menyimpan arsip.' });
   }
 });
 
 // Edit arsip (admin): judul, tautan, atau ganti file
-router.put('/archives/:id', adminOnly, upload.single('file'), async (req, res) => {
+router.put('/archives/:id', adminOnly, async (req, res) => {
+  const { title, url, fileUrl, originalName, mimeType, size } = req.body;
   try {
     const archive = await Archive.findById(req.params.id);
     if (!archive) {
-      removeFile(req.file?.filename);
+      await discardBlob(fileUrl);
       return res.status(404).json({ message: 'Arsip tidak ditemukan.' });
     }
 
-    if (req.body.title !== undefined) {
-      if (!validName(req.body.title)) {
-        removeFile(req.file?.filename);
+    if (title !== undefined) {
+      if (!validName(title)) {
+        await discardBlob(fileUrl);
         return res.status(400).json({ message: 'Judul arsip wajib diisi.' });
       }
-      archive.title = req.body.title;
+      archive.title = title;
     }
 
-    if (archive.type === 'link' && req.body.url !== undefined) {
-      if (!isHttpUrl(req.body.url)) return res.status(400).json({ message: 'Tautan tidak valid.' });
-      archive.url = req.body.url;
+    if (archive.type === 'link' && url !== undefined) {
+      if (!isHttpUrl(url)) return res.status(400).json({ message: 'Tautan tidak valid.' });
+      archive.url = url;
     }
 
-    if (archive.type !== 'link' && req.file) {
-      if (archive.type === 'image' && !req.file.mimetype.startsWith('image/')) {
-        removeFile(req.file.filename);
+    let oldFile = null;
+    if (archive.type !== 'link' && fileUrl) {
+      if (!isBlobUrl(fileUrl)) return res.status(400).json({ message: 'File tidak valid.' });
+      if (archive.type === 'image' && !String(mimeType || '').startsWith('image/')) {
+        await discardBlob(fileUrl);
         return res.status(400).json({ message: 'File harus berupa gambar.' });
       }
-      removeFile(archive.filePath);
-      archive.filePath = req.file.filename;
-      archive.originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      archive.mimeType = req.file.mimetype;
-      archive.size = req.file.size;
+      oldFile = { fileUrl: archive.fileUrl, filePath: archive.filePath };
+      archive.fileUrl = fileUrl;
+      archive.filePath = undefined;
+      archive.originalName = String(originalName || '').slice(0, 255);
+      archive.mimeType = String(mimeType || '');
+      archive.size = Number(size) || 0;
     }
 
     await archive.save();
+    await removeFile(oldFile); // hapus file lama setelah berhasil disimpan
     res.json(archive);
   } catch (err) {
     console.error(err);
-    removeFile(req.file?.filename);
+    await discardBlob(fileUrl);
     res.status(500).json({ message: 'Gagal memperbarui arsip.' });
   }
 });
@@ -299,7 +312,7 @@ router.put('/archives/:id', adminOnly, upload.single('file'), async (req, res) =
 router.delete('/archives/:id', adminOnly, async (req, res) => {
   const archive = await Archive.findById(req.params.id);
   if (!archive) return res.status(404).json({ message: 'Arsip tidak ditemukan.' });
-  removeFile(archive.filePath);
+  await removeFile(archive);
   await archive.deleteOne();
   res.json({ message: 'Arsip berhasil dihapus.' });
 });

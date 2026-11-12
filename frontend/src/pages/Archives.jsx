@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Search, SearchX, Upload } from 'lucide-react';
-import api, { errorMessage, formatSize } from '../api.js';
+import { upload as uploadToBlob } from '@vercel/blob/client';
+import api, { API_URL, errorMessage, formatSize } from '../api.js';
 import { useAuth } from '../AuthContext.jsx';
 import { useToast } from '../components/Toast.jsx';
 import useUndoable from '../components/useUndoable.js';
@@ -11,11 +12,9 @@ import { TYPES } from '../fileTypes.js';
 import PageHeader from '../components/PageHeader.jsx';
 import Modal from '../components/Modal.jsx';
 import ArchiveRow from '../components/ArchiveRow.jsx';
-import { useArchiveViewer } from '../components/ArchiveViewer.jsx';
 import { Empty, Loading, SkeletonText } from '../components/States.jsx';
 
 const MAX_SIZE = 25 * 1024 * 1024;
-const PAGE = 30;
 
 function FieldError({ id, children }) {
   return children ? <small id={id} className="field-error" role="alert">{children}</small> : null;
@@ -51,31 +50,42 @@ function ArchiveForm({ groupId, item, onDone, onClose }) {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const fd = new FormData();
-    fd.append('title', title.trim());
-    if (!editing) fd.append('type', type);
-    if (type === 'link') fd.append('url', url.trim());
-    else if (file) fd.append('file', file);
-
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const cfg = {
-      signal: ctrl.signal,
-      onUploadProgress: (ev) => { if (ev.total) setProgress(Math.round((ev.loaded * 100) / ev.total)); },
-    };
 
     setBusy(true);
     setProgress(0);
     try {
-      if (editing) await api.put(`/archives/${item._id}`, fd, cfg);
-      else await api.post(`/groups/${groupId}/archives`, fd, cfg);
+      const body = { title: title.trim() };
+      if (!editing) body.type = type;
+      if (type === 'link') {
+        body.url = url.trim();
+      } else if (file) {
+        // File dikirim langsung ke Vercel Blob, lalu backend hanya menyimpan alamatnya
+        const safeName = file.name.replace(/[^\w.-]+/g, '_');
+        const blob = await uploadToBlob(`arsip/${safeName}`, file, {
+          access: 'public',
+          handleUploadUrl: `${API_URL}/api/blob-upload`,
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          abortSignal: ctrl.signal,
+          onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+        });
+        body.fileUrl = blob.url;
+        body.originalName = file.name;
+        body.mimeType = file.type || 'application/octet-stream';
+        body.size = file.size;
+      }
+
+      if (editing) await api.put(`/archives/${item._id}`, body, { signal: ctrl.signal });
+      else await api.post(`/groups/${groupId}/archives`, body, { signal: ctrl.signal });
       toast(editing ? 'Arsip berhasil diperbarui.' : 'Arsip berhasil diunggah.');
       invalidateIndex();
       onDone();
       close();
     } catch (err) {
       setBusy(false);
-      if (err.code === 'ERR_CANCELED') toast('Upload dibatalkan.', 'info');
+      if (ctrl.signal.aborted || err.code === 'ERR_CANCELED') toast('Upload dibatalkan.', 'info');
+      else if (!err.response && file) setErrors({ form: 'Gagal mengunggah file. Periksa koneksi atau login ulang, lalu coba lagi.' });
       else setErrors({ form: errorMessage(err) });
     }
   };
@@ -165,7 +175,6 @@ export default function Archives() {
   const [type, setType] = useState('all');
   const [sort, setSort] = useState('new');
   const [modal, setModal] = useState(null);
-  const [limit, setLimit] = useState(PAGE);
 
   const load = () =>
     api
@@ -181,7 +190,6 @@ export default function Archives() {
     setItems(null);
     setQ('');
     setType('all');
-    setLimit(PAGE);
     api
       .get(`/groups/${groupId}`)
       .then((r) => {
@@ -216,9 +224,6 @@ export default function Archives() {
       .filter((a) => !term || [a.title, a.originalName, a.uploadedBy?.email].join(' ').toLowerCase().includes(term))
       .sort(SORTS[sort].fn);
   }, [visible, q, type, sort]);
-
-  const { open: openViewer, node: viewer } = useArchiveViewer(filtered);
-  useEffect(() => setLimit(PAGE), [q, type, sort]);
 
   const cat = group?.category;
   const upload = <button className="btn btn-primary" onClick={() => setModal({ type: 'add' })}><Plus size={18} /> Upload Arsip</button>;
@@ -261,7 +266,7 @@ export default function Archives() {
       {items === null ? (
         <Loading variant="list" />
       ) : visible.length === 0 ? (
-        <Empty title="Belum ada arsip" text="Unggah file, gambar, atau tautan pertama ke kelompok ini.">
+        <Empty text="Belum ada arsip. Unggah file, gambar, atau tautan pertama.">
           <button className="btn btn-primary" onClick={() => setModal({ type: 'add' })}><Upload size={18} /> Upload Arsip</button>
         </Empty>
       ) : filtered.length === 0 ? (
@@ -274,26 +279,20 @@ export default function Archives() {
         <>
           {filtering && <p className="result-count" aria-live="polite">Menampilkan {filtered.length} dari {visible.length} arsip</p>}
           <div className="archive-list">
-            {filtered.slice(0, limit).map((a, i) => (
+            {filtered.map((a, i) => (
               <ArchiveRow
                 key={a._id}
                 a={a}
                 index={i}
                 q={q}
                 isAdmin={isAdmin}
-                onRead={openViewer}
                 onEdit={() => setModal({ type: 'edit', item: a })}
                 onDelete={() => removeArchive(a)}
               />
             ))}
           </div>
-          {filtered.length > limit && (
-            <div className="more"><button className="btn btn-ghost" onClick={() => setLimit((n) => n + PAGE)}>Tampilkan {Math.min(PAGE, filtered.length - limit)} arsip lagi <span className="muted">({filtered.length - limit} tersisa)</span></button></div>
-          )}
         </>
       )}
-
-      {viewer}
 
       {modal && (
         <ArchiveForm

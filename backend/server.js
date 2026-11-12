@@ -12,6 +12,7 @@ if (!process.env.VERCEL) {
 
 const authRoutes = require('./routes/auth');
 const contentRoutes = require('./routes/content');
+const blobRoutes = require('./routes/blob');
 
 const required = ['MONGODB_URI', 'JWT_SECRET'];
 const missing = required.filter((k) => !process.env[k]);
@@ -63,6 +64,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/blob-upload', blobRoutes); // harus sebelum contentRoutes (punya auth sendiri)
 app.use('/api', contentRoutes);
 
 // Penangan error (mis. file terlalu besar)

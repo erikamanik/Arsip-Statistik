@@ -6,7 +6,8 @@ const archiveSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     type: { type: String, enum: ['link', 'file', 'image'], required: true },
     url: { type: String }, // untuk tipe link
-    filePath: { type: String }, // nama file di folder uploads (tipe file / image)
+    fileUrl: { type: String }, // alamat file di Vercel Blob (tipe file / image)
+    filePath: { type: String }, // arsip lama: nama file di folder uploads
     originalName: { type: String },
     mimeType: { type: String },
     size: { type: Number },
