@@ -85,13 +85,8 @@ export default function AuthPage() {
       <section className="auth-hero">
         <div className="hero-inner">
           <BrandMark size={56} />
-          <h1>Arsip Kegiatan Statistik Distribusi dan Jasa</h1>
-          <p>Simpan, kelompokkan, dan temukan kembali arsip kegiatan statistik per tahun — dalam bentuk file, gambar, maupun tautan.</p>
-          <ul>
-            <li><FolderTree size={18} /> Tertata per tahun, kategori, dan kelompok</li>
-            <li><Clock size={18} /> Tercatat siapa yang mengunggah dan kapan</li>
-            <li><Search size={18} /> Temukan arsip lewat satu pencarian</li>
-          </ul>
+          <h1>Arsip Kegiatan Statistik</h1>
+          <p>Simpan, kelompokkan, dan temukan kembali arsip kegiatan statistik per tahun dalam bentuk file, gambar, maupun tautan.</p>
         </div>
         <span className="blob b1" />
         <span className="blob b2" />
